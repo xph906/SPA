@@ -42,7 +42,7 @@ spa.shell = (function () {
       chat_extended_title : 'Click to retract',
       chat_retracted_title : 'Click to extend',
       anchor_schema_map : {
-        chat : {open : true, closed : true};
+        chat : {open : true, closed : true}
       }
     },
     stateMap = {
@@ -59,7 +59,7 @@ spa.shell = (function () {
   //------------------------BEGIN UTILITY METHODS ------------------------
   copyAnchorMap = function () {
     return $.extend(true, {}, stateMap.anchor_map);
-  }
+  };
   //------------------------END UTILITY METHODS --------------------------
 
   //------------------------BEGIN DOM METHODS ------------------------
@@ -156,42 +156,42 @@ spa.shell = (function () {
   //      * returns true on success, false on failure
   changeAnchorPart = function (arg_map) {
     var anchor_map_revise = copyAnchorMap(),
-      key_name, key_name_dep;
-    
+      key_name,
+      key_name_dep;
+
     //begin merge changes into anchor map
     //note that here I changed the sample codes:
     //  instead of using continue label, I used continue
-    for (key_name : arg_map){
-      if (arg_map.hasOwnProperty(key_name)){
+    for (key_name in arg_map) {
+      if (arg_map.hasOwnProperty(key_name)) {
         //skip dependent keys (see uriAnchor for details)
-        if (key_name.indexOf('_') === 0){ continue; }
-        
+        if (key_name.indexOf('_') === 0) { continue; }
+
         //update independent key value
         anchor_map_revise[key_name] = arg_map[key_name];
-        
+
         //update matching dependent key
         key_name_dep = '_' + key_name;
         if (arg_map[key_name_dep]) {
           anchor_map_revise = arg_map[key_name_dep];
-        }
-        else {
+        } else {
           //updated value doesn't have dependent key/value pair
           delete anchor_map_revise[key_name_dep];
-          delete anchor_map_revise['_s'+key_name_dep];
+          delete anchor_map_revise['_s' + key_name_dep];
         }
       }
     }
-    
+
     //begin attempt to update URI
-    try{
+    try {
       $.uriAnchor.setAnchor(anchor_map_revise);
-    }
-    catch (error) {
-      console.log("failed to update anchor "+anchor_map_revise);
-      $.uriAnchor.setAnchor(stateMap.anchor_map,null,true);
+    } catch (error) {
+      console.log("error changeAnchorPart: failed to update anchor "
+        + anchor_map_revise);
+      $.uriAnchor.setAnchor(stateMap.anchor_map, null, true);
       return false;
     }
-  
+
     return true;
   };
 
@@ -207,7 +207,7 @@ spa.shell = (function () {
   //    * Toggle chat panel 
   onClickChat = function (event) {
     changeAnchorPart({
-      chat: (stateMap.is_chat_retracted ? 'open', 'closed');
+      chat: (stateMap.is_chat_retracted ? 'open' : 'closed')
     });
     return false;
   };
@@ -222,42 +222,48 @@ spa.shell = (function () {
   //    * Adjust the application only where new state differs 
   //    *   from existing one
   onHashchange = function (event) {
-    console.log("onHashChange");
     var anchor_map_previous = copyAnchorMap(),
       anchor_map_proposed,
-      _s_chat_previous, _s_chat_proposed,
+      _s_chat_previous,
+      _s_chat_proposed,
       s_chat_proposed;
-  
+
+    //FIXME: if hash changes when sliding, it
+    //doesn't work as expected.
     try {
       anchor_map_proposed = $.uriAnchor.makeAnchorMap();
-    }
-    catch (error) {
-      console.log("makeAnchorMap error");
-      $.uriAnchor.setAnchor(anchor_map_previous,null,true);
+    } catch (error) {
+      console.log("error onHashchange: failed to make anchor map "
+        + error);
+      $.uriAnchor.setAnchor(anchor_map_previous, null, true);
+      anchor_map_proposed = anchor_map_previous;
     }
     stateMap.anchor_map = anchor_map_proposed;
 
     //update chat state
     _s_chat_previous = anchor_map_previous._s_chat;
     _s_chat_proposed = anchor_map_proposed._s_chat;
-    if (!_s_chat_previous
-      || _s_chat_previous != _s_chat_proposed){
-      s_chat_proposed = anchor_map_proposed.chat;
-      switch (s_chat_proposed) {
-        case 'open':
-          toggleChat(true);
-          break;
-        case 'closed':
-          toggleChat(false);
-          break;
-        default:
-          //toggleChat(false);
-          //delete anchor_map_proposed.chat;
-          console.log("proposed chat arg error: "+s_chat_proposed);
-          $.uriAnchor.setAnchor(anchor_map_previous,null,true);
+    if (_s_chat_previous !== _s_chat_proposed) {
+      if (_s_chat_proposed === "undefined") { 
+        toggleChat(false);
+      } else {
+        s_chat_proposed = anchor_map_proposed.chat;
+        switch (s_chat_proposed) {
+          case 'open':
+            toggleChat(true);
+            break;
+          case 'closed':
+            toggleChat(false);
+            break;
+          default:
+            toggleChat(false);
+            delete anchor_map_proposed.chat;
+            $.uriAnchor.setAnchor(anchor_map_proposed,null,true);  
+            stateMap.anchor_map = anchor_map_proposed; 
+        }
       }
     }
-
+    
     //new state updates here ...
 
     return false;
@@ -280,9 +286,16 @@ spa.shell = (function () {
       .click(onClickChat);
 
     //configure uriAnchor
+    $.uriAnchor.configModule({
+      schema_map : configMap.anchor_schema_map
+    });
+
+    $(window)
+      .on('hashchange',onHashchange)
+      .trigger('hashchange');
   };
   // End public method /initModule/
 
-  return { initModule: initModule };
+  return { initModule : initModule };
   //------------------------END PUBLIC METHODS --------------------------  
 }());
